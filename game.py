@@ -455,50 +455,41 @@ class MafiaGame:
     def all_night_actions_submitted(self) -> bool:
         if self.phase != Phase.NIGHT:
             return False
+        return all(self._night_action_submitted(actor) for actor in self.night_action_actors())
 
-        for actor in self.night_action_actors():
-            if actor.role == Role.MAFIA and actor.user_id not in self.mafia_targets:
-                return False
-            if actor.role == Role.DOCTOR and actor.user_id not in self.doctor_targets:
-                return False
-            if (
-                actor.role == Role.NURSE
-                and actor.user_id not in self.nurse_targets
-                and actor.user_id not in self.nurse_prescription_targets
-            ):
-                return False
-            if actor.role == Role.POLICE and actor.user_id not in self.police_targets:
-                return False
-            if actor.role == Role.VIGILANTE and actor.user_id not in self.vigilante_targets:
-                return False
-            if (
-                actor.role == Role.REPORTER
-                and actor.user_id not in self.reporter_targets
-                and actor.user_id not in self.reporter_skip_submitted
-            ):
-                return False
-            if actor.role == Role.DETECTIVE and actor.user_id not in self.detective_targets:
-                return False
-            if actor.role == Role.SHAMAN and actor.user_id not in self.shaman_targets:
-                return False
-            if actor.role == Role.PRIEST and actor.user_id not in self.priest_targets:
-                return False
-            if actor.role == Role.SPY and not self.spy_targets.get(actor.user_id):
-                return False
-            if actor.role == Role.SPY and actor.user_id in self.spy_bonus_pending:
-                return False
-            if actor.role == Role.CONTRACTOR and actor.user_id not in self.contractor_contracts:
-                return False
-            if actor.role == Role.WITCH and actor.user_id not in self.witch_targets:
-                return False
-            if actor.role == Role.GODFATHER and actor.user_id not in self.godfather_targets:
-                return False
-            if actor.role == Role.TERRORIST and actor.user_id not in self.terrorist_action_submitted:
-                return False
-            if actor.role == Role.CULT_LEADER and actor.user_id not in self.cult_targets:
-                return False
-            if actor.role == Role.FANATIC and actor.user_id not in self.fanatic_targets:
-                return False
+    def _night_action_submitted(self, actor: Player) -> bool:
+        if actor.role == Role.MAFIA:
+            return actor.user_id in self.mafia_targets
+        if actor.role == Role.DOCTOR:
+            return actor.user_id in self.doctor_targets
+        if actor.role == Role.NURSE:
+            return actor.user_id in self.nurse_targets or actor.user_id in self.nurse_prescription_targets
+        if actor.role == Role.POLICE:
+            return actor.user_id in self.police_targets
+        if actor.role == Role.VIGILANTE:
+            return actor.user_id in self.vigilante_targets
+        if actor.role == Role.REPORTER:
+            return actor.user_id in self.reporter_targets or actor.user_id in self.reporter_skip_submitted
+        if actor.role == Role.DETECTIVE:
+            return actor.user_id in self.detective_targets
+        if actor.role == Role.SHAMAN:
+            return actor.user_id in self.shaman_targets
+        if actor.role == Role.PRIEST:
+            return actor.user_id in self.priest_targets
+        if actor.role == Role.SPY:
+            return bool(self.spy_targets.get(actor.user_id)) and actor.user_id not in self.spy_bonus_pending
+        if actor.role == Role.CONTRACTOR:
+            return actor.user_id in self.contractor_contracts
+        if actor.role == Role.WITCH:
+            return actor.user_id in self.witch_targets
+        if actor.role == Role.GODFATHER:
+            return actor.user_id in self.godfather_targets
+        if actor.role == Role.TERRORIST:
+            return actor.user_id in self.terrorist_action_submitted
+        if actor.role == Role.CULT_LEADER:
+            return actor.user_id in self.cult_targets
+        if actor.role == Role.FANATIC:
+            return actor.user_id in self.fanatic_targets
         return True
 
     def _nurse_can_act(self, player: Player) -> bool:
@@ -1182,10 +1173,13 @@ class MafiaGame:
         lover_sacrifices: list[tuple[Player, Player]] = []
         enhanced_protection = protected_id is not None and self._nurse_enhanced_heal_active()
 
-        def add_mafia_team_kill(target: Player) -> None:
+        def kill_player(target: Player, *, by_mafia_team: bool = False) -> None:
+            if target.alive:
+                self._mark_dead(target)
             if target not in killed_players:
                 killed_players.append(target)
-            killed_by_mafia_team_ids.add(target.user_id)
+            if by_mafia_team:
+                killed_by_mafia_team_ids.add(target.user_id)
 
         def resolve_mafia_team_attack(
             target: Player | None,
@@ -1197,8 +1191,7 @@ class MafiaGame:
                 return
             lover_savior = self._lover_sacrifice_for(target)
             if lover_savior:
-                self._mark_dead(lover_savior)
-                add_mafia_team_kill(lover_savior)
+                kill_player(lover_savior, by_mafia_team=True)
                 lover_sacrifices.append((lover_savior, target))
                 return
             if target.user_id == protected_id and enhanced_protection:
@@ -1213,8 +1206,7 @@ class MafiaGame:
                 self.publicly_revealed_ids.add(target.user_id)
                 soldier_blocks.append(target)
                 return
-            self._mark_dead(target)
-            add_mafia_team_kill(target)
+            kill_player(target, by_mafia_team=True)
 
         resolve_mafia_team_attack(
             mafia_target,
@@ -1228,17 +1220,10 @@ class MafiaGame:
         )
 
         for contractor_kill in contractor_kills:
-            if contractor_kill.alive:
-                self._mark_dead(contractor_kill)
-            if contractor_kill not in killed_players:
-                killed_players.append(contractor_kill)
-            killed_by_mafia_team_ids.add(contractor_kill.user_id)
+            kill_player(contractor_kill, by_mafia_team=True)
 
         for vigilante_kill in vigilante_kills:
-            if vigilante_kill.alive:
-                self._mark_dead(vigilante_kill)
-            if vigilante_kill not in killed_players:
-                killed_players.append(vigilante_kill)
+            kill_player(vigilante_kill)
 
         terrorist_retaliations = self._resolve_terrorist_night_retaliations(
             killed_by_mafia_team_ids,

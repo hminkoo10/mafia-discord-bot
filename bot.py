@@ -138,10 +138,9 @@ CONFIRM_VOTE_SECONDS = 15
 GAME_NOTIFICATION_ROLE = "게임알림"
 DEAD_PLAYER_ROLE = "사망자"
 SPECTATOR_ROLE = "관전자"
-DEAD_CHAT_CHANNEL_NAME = "사망자-채팅방"
+OLD_DEAD_CHAT_CHANNEL_NAME = "사망자-채팅방"
 SHAMAN_CHAT_CHANNEL_NAME = "영매-채팅방"
 FROG_CHAT_CHANNEL_NAME = "개구리-채팅방"
-ANONYMOUS_PUBLIC_CHANNEL_NAME = "익명-전체채팅"
 PRIVATE_CHAT_ROLES = (
     Role.MAFIA,
     Role.POLICE,
@@ -160,7 +159,6 @@ PRIVATE_CHANNEL_NAMES = {
     Role.CULT_LEADER: "교주-비밀방",
     Role.LOVER: "연인-비밀방",
 }
-BASE_ROLE_ORDER = (Role.MAFIA, Role.DOCTOR, Role.POLICE)
 CITIZEN_SPECIAL_ROLES = (
     Role.DETECTIVE,
     Role.SHAMAN,
@@ -195,7 +193,6 @@ PUBLIC_CITIZEN_SPECIAL_ROLES = (
 )
 PUBLIC_NEUTRAL_SPECIAL_ROLES = (Role.JOKER,)
 PUBLIC_CULT_SPECIAL_ROLES = (Role.CULT_LEADER,)
-INVESTIGATION_ROLES = (Role.POLICE, Role.AGENT, Role.VIGILANTE)
 CONTRACTOR_GUESS_ROLES = (
     Role.MAFIA,
     Role.DOCTOR,
@@ -2672,6 +2669,11 @@ async def set_anonymous_general_chat_permissions(
         )
 
 
+async def delete_message_quietly(message: discord.Message) -> None:
+    with suppress(discord.DiscordException):
+        await message.delete()
+
+
 async def handle_anonymous_message(
     message: discord.Message,
     running: RunningGame,
@@ -2682,8 +2684,7 @@ async def handle_anonymous_message(
     shaman_chat: bool = False,
 ) -> bool:
     if message.author.id != owner_id:
-        with suppress(discord.DiscordException):
-            await message.delete()
+        await delete_message_quietly(message)
         return True
     if not message.guild:
         return True
@@ -2810,26 +2811,15 @@ async def on_message(message: discord.Message) -> None:
             continue
         player = running.game.get_player(message.author.id)
         if not player or not running.game.is_frog(player):
-            try:
-                await message.delete()
-            except discord.DiscordException:
-                pass
+            await delete_message_quietly(message)
             return
         if running.game.phase != Phase.DAY:
-            try:
-                await message.delete()
-            except discord.DiscordException:
-                pass
+            await delete_message_quietly(message)
             return
 
         croak_count = max(1, len(message.content))
         game_channel = message.guild.get_channel(running.channel_id) if message.guild else None
-        try:
-            await message.delete()
-        except discord.DiscordException:
-            pass
-        if message.guild:
-            game_channel = game_display_channel(message.guild, running, game_channel)
+        await delete_message_quietly(message)
         if isinstance(game_channel, discord.abc.Messageable):
             await send_embed(
                 game_channel,
@@ -4904,14 +4894,6 @@ def anonymous_personal_channel(
     return channel if isinstance(channel, discord.TextChannel) else None
 
 
-def game_display_channel(
-    guild: discord.Guild,
-    running: RunningGame,
-    fallback: discord.abc.Messageable,
-) -> discord.abc.Messageable:
-    return fallback
-
-
 async def send_anonymous_personal_embed(
     guild: discord.Guild,
     running: RunningGame,
@@ -5015,7 +4997,6 @@ async def announce_cult_bells_now(running: RunningGame, count: int) -> None:
     channel = guild.get_channel(running.channel_id)
     if not isinstance(channel, discord.abc.Messageable):
         return
-    channel = game_display_channel(guild, running, channel)
     await send_game_embed(
         guild,
         channel,
@@ -6215,9 +6196,9 @@ async def delete_anonymous_chat_channels(guild: discord.Guild, running: RunningG
     running.anonymous_webhook_urls.clear()
 
 
-async def delete_legacy_dead_chat_channels(guild: discord.Guild) -> None:
+async def cleanup_old_dead_chat_channels(guild: discord.Guild) -> None:
     for channel in guild.text_channels:
-        if channel.name != DEAD_CHAT_CHANNEL_NAME:
+        if channel.name != OLD_DEAD_CHAT_CHANNEL_NAME:
             continue
         with suppress(discord.DiscordException):
             await channel.delete(reason="마피아 게임 공용 사망자 채팅방 미사용으로 삭제")
@@ -6313,14 +6294,14 @@ async def game_loop(guild: discord.Guild, running: RunningGame) -> None:
     try:
         original_channel = channel
         await create_anonymous_chat_channels(guild, original_channel, running)
-        channel = game_display_channel(guild, running, original_channel)
+        channel = original_channel
         await set_spectator_game_channel_access(
             guild,
             original_channel,
             running,
             "마피아 게임 관전자 게임 채널 열람 권한 설정",
         )
-        await delete_legacy_dead_chat_channels(guild)
+        await cleanup_old_dead_chat_channels(guild)
         await hide_original_game_channel_for_anonymous(guild, original_channel, running)
         await create_private_role_channels(guild, channel, running)
         await create_memo_channels(guild, channel, running)

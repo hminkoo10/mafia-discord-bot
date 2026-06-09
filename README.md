@@ -25,7 +25,8 @@ DISCORD_TOKEN=your_bot_token_here
 
 ## 설정
 
-기본 설정은 `config.json`에서 관리합니다.
+기본 설정은 `config.json`에서 관리합니다. 파일이 없으면 `config.example.json`을 복사해 자동으로 만듭니다.
+`config.json`은 서버별 실제 설정이라 Git에는 올리지 않습니다.
 게임 안에서는 `/마피아설정` 명령어로 인원, 특수 직업, 익명 모드 같은 옵션을 바꿀 수 있고,
 `/마피아웹설정` 명령어로 브라우저에서 같은 항목들을 편집할 수도 있습니다.
 

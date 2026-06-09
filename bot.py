@@ -22,6 +22,7 @@ import web_settings
 
 BASE_DIR = Path(__file__).resolve().parent
 CONFIG_FILE = BASE_DIR / "config.json"
+CONFIG_EXAMPLE_FILE = BASE_DIR / "config.example.json"
 STATS_FILE = BASE_DIR / "stats.json"
 
 # /마피아웹설정 명령어가 발급하는 1회용 설정 편집 링크 관련 상수.
@@ -272,6 +273,12 @@ def parse_user_id_list(values: object) -> list[int]:
 
 
 def load_config() -> BotConfig:
+    if not CONFIG_FILE.exists():
+        if CONFIG_EXAMPLE_FILE.exists():
+            CONFIG_FILE.write_text(CONFIG_EXAMPLE_FILE.read_text(encoding="utf-8"), encoding="utf-8")
+        else:
+            raise FileNotFoundError("config.json 파일이 없습니다. config.example.json을 복사해 config.json을 만들어 주세요.")
+
     with CONFIG_FILE.open("r", encoding="utf-8") as file:
         data = json.load(file)
     return BotConfig(
@@ -344,13 +351,6 @@ def save_config() -> None:
         json.dump(saved_data, file, ensure_ascii=False, indent=2)
         file.write("\n")
     os.replace(temp_path, CONFIG_FILE)
-
-
-def persist_config_safely() -> None:
-    try:
-        save_config()
-    except OSError as error:
-        print(f"Config save error: {error!r}")
 
 
 # --- /마피아웹설정: 브라우저에서 설정을 편집할 수 있는 1회용 링크 -------------------
@@ -6365,7 +6365,6 @@ async def restore_all_frog_game_channel_permissions(
 
 
 async def cleanup_game(guild: discord.Guild, running: RunningGame) -> None:
-    persist_config_safely()
     await restore_all_frog_game_channel_permissions(guild, running)
     await restore_member_channel_chat(guild, running)
     await restore_madam_seduction_permissions(guild, running)

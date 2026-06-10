@@ -12,7 +12,7 @@ async def send_command_error(
         message = str(root_error)
     else:
         print(f"Command error: {root_error!r}")
-        message = "??? ???? ? ??? ??????."
+        message = "명령을 실행하는 중 오류가 발생했습니다."
 
     error_embed = make_embed(message, color=ERROR_EMBED_COLOR)
     if interaction.response.is_done():

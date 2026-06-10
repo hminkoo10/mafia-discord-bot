@@ -1070,16 +1070,6 @@ class MafiaGame:
             self.scientist_revive_used_ids.add(player.user_id)
             self.scientist_pending_revive_ids.add(player.user_id)
             self.scientist_contacted.add(player.user_id)
-        if player.role == Role.MADAM and not any(
-            other.alive and other.role == Role.MADAM for other in self.players
-        ):
-            release_day = self._madam_seduction_release_day_after_death()
-            for user_id in self.madam_seduced_ids:
-                self.madam_seduction_release_days[user_id] = max(
-                    self.madam_seduction_release_days.get(user_id, release_day),
-                    release_day,
-                )
-
     def _clear_night_action(self, actor_id: int) -> None:
         self.mafia_targets.pop(actor_id, None)
         self.mafia_display_targets.pop(actor_id, None)
@@ -1351,7 +1341,7 @@ class MafiaGame:
             if target.user_id not in self.madam_seduced_ids:
                 seduced.append(target)
             self.madam_seduced_ids.add(target.user_id)
-            self.madam_seduction_release_days.pop(target.user_id, None)
+            self.madam_seduction_release_days[target.user_id] = self.day_number + 1
             if self.is_mafia_team(target):
                 self._contact_mafia_team_member(target)
                 self.madam_contacted.add(voter.user_id)
@@ -2016,14 +2006,7 @@ class MafiaGame:
         self.phase = Phase.NIGHT
         self.day_number += 1
 
-    def _madam_seduction_release_day_after_death(self) -> int:
-        if self.phase == Phase.NIGHT:
-            return self.day_number + 1
-        return self.day_number + 2
-
     def _expire_madam_seductions(self) -> None:
-        if any(player.alive and player.role == Role.MADAM for player in self.players):
-            return
         for user_id, release_day in list(self.madam_seduction_release_days.items()):
             if release_day <= self.day_number:
                 self.madam_seduced_ids.discard(user_id)

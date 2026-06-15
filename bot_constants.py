@@ -4,7 +4,7 @@ from typing import Literal
 
 import discord
 
-from game import Role
+from game_models import Role
 
 
 RECRUITMENT_SECONDS = 60

@@ -6,7 +6,8 @@ import time
 
 import discord
 
-from game import MafiaGame, Player, Role
+from game import MafiaGame
+from game_models import Player, Role
 
 
 @dataclass

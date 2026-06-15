@@ -16,7 +16,8 @@ from discord.ext import commands
 from dotenv import load_dotenv
 import uvicorn
 
-from game import MafiaGame, NightResult, Phase, Player, Role, VoteResult, Winner
+from game import MafiaGame
+from game_models import NightResult, Phase, Player, Role, VoteResult, Winner
 from bot_constants import (
     RECRUITMENT_SECONDS,
     MAX_GAME_PLAYERS,

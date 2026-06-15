@@ -1,6 +1,22 @@
 from __future__ import annotations
 
-from game import Role
+from game_models import Role
+
+
+REQUIRED_ROLE_NAMES = (
+    "GANGSTER",
+    "PROPHET",
+    "PSYCHOLOGIST",
+    "THIEF",
+)
+missing_role_names = [name for name in REQUIRED_ROLE_NAMES if name not in Role.__members__]
+if missing_role_names:
+    missing_text = ", ".join(missing_role_names)
+    raise RuntimeError(
+        "Role enum is missing recently added roles: "
+        f"{missing_text}. Pull the latest game_models.py together with role_data.py, "
+        "then restart the bot."
+    )
 
 
 ROLE_GUIDE_ORDER = (

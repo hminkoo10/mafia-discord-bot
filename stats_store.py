@@ -7,7 +7,8 @@ from pathlib import Path
 import time
 
 from bot_state import RunningGame
-from game import MafiaGame, Player, Role, Winner
+from game import MafiaGame
+from game_models import MAFIA_TEAM_ROLES, Player, Role, Winner
 from role_data import ROLE_GUIDE_ORDER
 from time_text import play_duration_text
 
@@ -121,7 +122,7 @@ def initial_role_for_stats(running: RunningGame, player: Player) -> Role:
 
 
 def is_mafia_team_role(role: Role) -> bool:
-    return role in {Role.MAFIA, Role.SPY, Role.CONTRACTOR, Role.WITCH, Role.SCIENTIST, Role.GODFATHER, Role.VILLAIN}
+    return role in MAFIA_TEAM_ROLES
 
 
 def player_won_game(game: MafiaGame, player: Player, winner: Winner) -> bool:

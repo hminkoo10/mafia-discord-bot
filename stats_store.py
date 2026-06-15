@@ -246,6 +246,21 @@ def role_rating_adjustment(running: RunningGame, player: Player, role: Role, win
             add(4, "간호사 의사 접선")
         else:
             add(-1, "간호사 접선 실패")
+    elif role == Role.GANGSTER:
+        if player.user_id in game.gangster_used_ids:
+            add(3, "건달 공갈 성공")
+        else:
+            add(-1, "건달 공갈 미사용")
+    elif role == Role.PROPHET:
+        if player.alive and game.day_number >= 4:
+            add(5, "예언자 계시 생존")
+        else:
+            add(-2, "예언자 계시 전 사망")
+    elif role == Role.PSYCHOLOGIST:
+        if player.user_id in game.psychologist_used_days:
+            add(3, "심리학자 관찰 사용")
+        else:
+            add(-1, "심리학자 관찰 미사용")
     elif role == Role.GRAVEROBBER:
         if player.role != Role.GRAVEROBBER:
             add(4, f"도굴꾼 {player.role.value} 승계")
@@ -273,6 +288,13 @@ def role_rating_adjustment(running: RunningGame, player: Player, role: Role, win
             add(4, "청부업자 동업 접선")
         elif game.day_number >= 2:
             add(-2, "청부업자 동업 실패")
+    elif role == Role.THIEF:
+        if player.user_id in game.thief_contacted:
+            add(5, "도둑 교련 접선")
+        elif player.user_id in game.thief_used_days:
+            add(3, "도둑 도벽 사용")
+        else:
+            add(-2, "도둑 도벽 미사용")
     elif role == Role.WITCH:
         if player.user_id in game.witch_contacted:
             add(4, "마녀 접선")

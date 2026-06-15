@@ -75,6 +75,7 @@ class MafiaGame:
         self.nurse_contacted: set[int] = set()
         self.nurse_contacts_this_night: list[int] = []
         self.gangster_targets: dict[int, int] = {}
+        self.gangster_used_ids: set[int] = set()
         self.gangster_blocked_vote_days: dict[int, int] = {}
         self.police_targets: dict[int, int] = {}
         self.vigilante_targets: dict[int, int] = {}
@@ -2110,6 +2111,7 @@ class MafiaGame:
             target = self.get_player(target_id)
             if not actor or not actor.alive or not target or not target.alive:
                 continue
+            self.gangster_used_ids.add(actor_id)
             self.gangster_blocked_vote_days[target.user_id] = self.day_number
             results[actor_id] = (
                 f"[공갈] {target.name} 님의 다음 낮 지목 투표권을 빼앗았습니다."

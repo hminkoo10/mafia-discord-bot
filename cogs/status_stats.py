@@ -2,6 +2,11 @@ from __future__ import annotations
 
 from cogs.common import *  # noqa: F401,F403
 
+try:
+    from leaderboard_image import render_leaderboard_image
+except ImportError:
+    render_leaderboard_image = None
+
 
 @bot.tree.command(name="마피아상태", description="진행 중인 마피아 게임 상태를 확인합니다.")
 async def show_status(interaction: discord.Interaction) -> None:
@@ -132,8 +137,14 @@ async def show_leaderboard(
     interaction: discord.Interaction,
     기준: str = "wins",
 ) -> None:
+    image = render_leaderboard_image(기준) if render_leaderboard_image else None
+    if image is None:
+        await interaction.response.send_message(
+            embed=make_embed(leaderboard_text(기준), title="리더보드"),
+        )
+        return
     await interaction.response.send_message(
-        embed=make_embed(leaderboard_text(기준), title="리더보드"),
+        file=discord.File(image, filename=f"mafia_leaderboard_{기준}.png"),
     )
 
 

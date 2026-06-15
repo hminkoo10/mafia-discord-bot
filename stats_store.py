@@ -18,6 +18,14 @@ INITIAL_RATING = 1000
 RATING_HISTORY_LIMIT = 20
 RATING_DELTA_CAP = 50
 ROLE_DELTA_CAP = 10
+LEADERBOARD_METRIC_NAMES = {
+    "wins": "승리수",
+    "winrate": "승률",
+    "games": "판수",
+    "mafia": "마피아팀 플레이",
+    "playtime": "게임시간",
+    "rating": "레이팅",
+}
 
 
 def original_stats_name(running: RunningGame, player: Player) -> str:
@@ -444,26 +452,20 @@ def leaderboard_value(entry: dict, metric: str) -> float:
     return float(wins)
 
 
-def leaderboard_text(metric: str) -> str:
+def leaderboard_metric_name(metric: str) -> str:
+    return LEADERBOARD_METRIC_NAMES.get(metric, LEADERBOARD_METRIC_NAMES["wins"])
+
+
+def leaderboard_entries(metric: str, limit: int = 10) -> list[tuple[str, dict]]:
     stats = load_stats()
     users = stats.get("users", {})
     if not isinstance(users, dict) or not users:
-        return "아직 기록된 게임 전적이 없습니다."
+        return []
     entries = [
         (user_id, entry)
         for user_id, entry in users.items()
         if isinstance(entry, dict) and int(entry.get("games", 0)) > 0
     ]
-    if not entries:
-        return "아직 기록된 게임 전적이 없습니다."
-    metric_names = {
-        "wins": "승리수",
-        "winrate": "승률",
-        "games": "판수",
-        "mafia": "마피아팀 플레이",
-        "playtime": "게임시간",
-        "rating": "레이팅",
-    }
     entries.sort(
         key=lambda item: (
             -leaderboard_value(item[1], metric),
@@ -472,7 +474,14 @@ def leaderboard_text(metric: str) -> str:
             str(item[1].get("name", "")),
         )
     )
-    lines = [f"기준: **{metric_names.get(metric, '승리수')}**"]
+    return entries[:limit]
+
+
+def leaderboard_text(metric: str) -> str:
+    entries = leaderboard_entries(metric)
+    if not entries:
+        return "아직 기록된 게임 전적이 없습니다."
+    lines = [f"기준: **{leaderboard_metric_name(metric)}**"]
     for rank, (_user_id, entry) in enumerate(entries[:10], start=1):
         games = int(entry.get("games", 0))
         wins = int(entry.get("wins", 0))

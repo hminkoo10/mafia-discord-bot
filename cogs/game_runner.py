@@ -155,6 +155,7 @@ async def run_vote_phase(
     channel: discord.abc.Messageable,
     running: RunningGame,
 ) -> None:
+    running.day_chat_open = False
     running.game.start_vote()
     await upsert_game_status(guild, running)
     running.vote_complete_event.clear()
@@ -367,6 +368,7 @@ async def set_final_defense_mode(
     nominee: Player,
 ) -> None:
     running.final_defense_user_id = nominee.user_id
+    running.day_chat_open = False
     await set_game_channel_chat(
         guild,
         channel,
@@ -374,6 +376,7 @@ async def set_final_defense_mode(
         participants_can_chat=False,
         reason="마피아 게임 최후변론 시작",
     )
+    await set_channel_slowmode(channel, running, 0, "마피아 게임 최후변론 슬로우모드 해제")
     if not running.game.is_frog(nominee) and not running.game.is_madam_seduced(nominee):
         await set_member_chat_permission(
             guild,
@@ -381,9 +384,16 @@ async def set_final_defense_mode(
             running,
             nominee,
             True,
-            "마피아 게임 최후변론 대상 발언 허용",
+            "마피아 게임 최후변론 대상 발언 재허용",
         )
-    await set_channel_slowmode(channel, running, 0, "마피아 게임 최후변론 슬로우모드 해제")
+        if running.anonymous_enabled:
+            await set_anonymous_general_input_access(
+                guild,
+                running,
+                nominee,
+                can_chat=True,
+                reason="마피아 게임 익명 최후변론 대상 발언 재허용",
+            )
 
 
 async def send_hacker_day_actions(

@@ -160,12 +160,25 @@ PAGE_STYLE = """
   .nav { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 0 20px; }
   .nav a { text-decoration: none; padding: 8px 12px; border: 1px solid #8884; border-radius: 8px; }
   .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin: 16px 0; }
+  .split { display: grid; grid-template-columns: 1.1fr 0.9fr; gap: 16px; }
   .card { border: 1px solid #8884; border-radius: 8px; padding: 14px; background: #8881; }
   .card strong { display: block; font-size: 1.4rem; margin-top: 4px; }
   .panel { border: 1px solid #8884; border-radius: 8px; padding: 16px; margin: 16px 0; }
   .muted { color: #888; }
+  .pill { display: inline-block; padding: 3px 9px; border: 1px solid #8884; border-radius: 999px; font-size: 0.86rem; color: #777; }
+  .metric-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0 18px; }
+  .metric-tabs a { text-decoration: none; border: 1px solid #8884; border-radius: 999px; padding: 7px 12px; }
+  .metric-tabs a.active { background: #5865F2; color: white; border-color: #5865F2; }
+  .podium { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .podium-card { border: 1px solid #8884; border-radius: 8px; padding: 14px; background: #8881; }
+  .podium-card .rank { font-size: 0.9rem; color: #888; }
+  .podium-card .name { font-size: 1.15rem; font-weight: 800; margin: 6px 0; }
+  .podium-card .rating { font-size: 1.45rem; font-weight: 800; }
+  .endpoint { display: grid; grid-template-columns: minmax(210px, 0.7fr) 1fr; gap: 10px; padding: 10px 0; border-bottom: 1px solid #8883; }
+  code { background: #8882; padding: 2px 6px; border-radius: 6px; }
   table { width: 100%; border-collapse: collapse; }
   th, td { padding: 8px 6px; border-bottom: 1px solid #8883; text-align: left; }
+  td.num, th.num { text-align: right; }
   th { font-weight: 700; }
   pre { white-space: pre-wrap; word-break: keep-all; margin: 0; font-family: inherit; }
   fieldset { border: 1px solid #8884; border-radius: 8px; padding: 8px 16px; margin-bottom: 16px; }
@@ -184,6 +197,11 @@ PAGE_STYLE = """
   .message { padding: 12px 16px; border-radius: 8px; margin-bottom: 16px; }
   .message.error { background: #f8d7da; color: #842029; }
   .message.notice { background: #d1e7dd; color: #0f5132; }
+  @media (max-width: 760px) {
+    .split { grid-template-columns: 1fr; }
+    .endpoint { grid-template-columns: 1fr; }
+    table { font-size: 0.92rem; }
+  }
 </style>
 """
 
@@ -199,7 +217,7 @@ def _render_nav() -> str:
         '<a href="/">홈</a>'
         '<a href="/status">상태판</a>'
         '<a href="/leaderboard">리더보드</a>'
-        '<a href="/api/status">API</a>'
+        '<a href="/api/docs">API 문서</a>'
         "</nav>"
     )
 
@@ -271,11 +289,87 @@ def _render_games_table(status: dict[str, object]) -> str:
     )
 
 
-def _render_leaderboard_panel(leaderboard: str) -> str:
+def _leaderboard_entries(leaderboard: dict[str, object]) -> list[dict[str, object]]:
+    entries = leaderboard.get("entries", []) if isinstance(leaderboard, dict) else []
+    return [item for item in entries if isinstance(item, dict)]
+
+
+def _render_metric_tabs(leaderboard: dict[str, object]) -> str:
+    current = str(leaderboard.get("metric", "rating"))
+    metrics = leaderboard.get("metrics", [])
+    if not isinstance(metrics, list):
+        return ""
+    links = []
+    for metric in metrics:
+        if not isinstance(metric, dict):
+            continue
+        key = str(metric.get("key", "rating"))
+        name = str(metric.get("name", key))
+        class_attr = ' class="active"' if key == current else ""
+        links.append(f'<a{class_attr} href="/leaderboard?metric={html.escape(key)}">{html.escape(name)}</a>')
+    return '<div class="metric-tabs">' + "".join(links) + "</div>"
+
+
+def _render_leaderboard_podium(leaderboard: dict[str, object]) -> str:
+    entries = _leaderboard_entries(leaderboard)[:3]
+    if not entries:
+        return '<p class="muted">아직 기록된 게임 전적이 없습니다.</p>'
+    cards = []
+    for entry in entries:
+        cards.append(
+            '<div class="podium-card">'
+            f'<div class="rank">#{_safe_text(entry.get("rank"))}</div>'
+            f'<div class="name">{_safe_text(entry.get("name"))}</div>'
+            f'<div class="rating">{_safe_text(entry.get("rating"))}점</div>'
+            f'<div class="muted">{_safe_text(entry.get("wins"))}승 {_safe_text(entry.get("losses"))}패 · '
+            f'승률 {_safe_text(entry.get("winrate_text"))}</div>'
+            "</div>"
+        )
+    return '<div class="podium">' + "".join(cards) + "</div>"
+
+
+def _render_leaderboard_table(leaderboard: dict[str, object]) -> str:
+    entries = _leaderboard_entries(leaderboard)
+    if not entries:
+        return '<section class="panel"><h2>리더보드</h2><p class="muted">아직 기록된 게임 전적이 없습니다.</p></section>'
+    rows = []
+    for entry in entries:
+        rows.append(
+            "<tr>"
+            f'<td class="num">{_safe_text(entry.get("rank"))}</td>'
+            f"<td><strong>{_safe_text(entry.get('name'))}</strong></td>"
+            f'<td class="num">{_safe_text(entry.get("rating"))}</td>'
+            f'<td class="num">{_safe_text(entry.get("wins"))}승 {_safe_text(entry.get("losses"))}패</td>'
+            f'<td class="num">{_safe_text(entry.get("winrate_text"))}</td>'
+            f'<td class="num">{_safe_text(entry.get("games"))}</td>'
+            f'<td class="num">{_safe_text(entry.get("mafia_team_games"))}</td>'
+            f'<td class="num">{_safe_text(entry.get("playtime"))}</td>'
+            "</tr>"
+        )
     return (
-        '<section class="panel"><h2>리더보드</h2>'
-        f"<pre>{html.escape(leaderboard)}</pre>"
-        "</section>"
+        '<section class="panel"><h2>전체 순위</h2>'
+        '<table><thead><tr><th class="num">순위</th><th>이름</th><th class="num">레이팅</th>'
+        '<th class="num">승패</th><th class="num">승률</th><th class="num">판수</th>'
+        '<th class="num">마피아팀</th><th class="num">게임시간</th></tr></thead><tbody>'
+        + "".join(rows)
+        + "</tbody></table></section>"
+    )
+
+
+def _render_stats_summary(stats: dict[str, object]) -> str:
+    cards = [
+        ("기록된 유저", stats.get("recorded_players", 0)),
+        ("누적 플레이", stats.get("total_player_games", 0)),
+        ("누적 시간", stats.get("total_playtime", "-")),
+        ("평균 레이팅", stats.get("average_rating", "-")),
+    ]
+    return (
+        '<section class="grid">'
+        + "".join(
+            f'<div class="card"><span>{html.escape(label)}</span><strong>{_safe_text(value)}</strong></div>'
+            for label, value in cards
+        )
+        + "</section>"
     )
 
 
@@ -366,35 +460,92 @@ def _render_page(
 </html>"""
 
 
-def _render_dashboard_page(
-    *,
-    title: str,
-    status: dict[str, object],
-    leaderboard: str,
-    admin_notice: str | None = None,
-) -> str:
-    notice_html = f'<p class="message notice">{html.escape(admin_notice)}</p>' if admin_notice else ""
+def _base_html(title: str, body: str, *, auto_refresh: bool = False) -> str:
+    refresh = '<meta http-equiv="refresh" content="20">' if auto_refresh else ""
     return f"""<!DOCTYPE html>
 <html lang="ko">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex">
-<meta http-equiv="refresh" content="20">
+{refresh}
 <title>{html.escape(title)}</title>
 {PAGE_STYLE}
 </head>
 <body>
 <h1>{html.escape(title)}</h1>
-<p class="meta">20초마다 자동 새로고침됩니다.</p>
 {_render_nav()}
-{notice_html}
-{_render_status_summary(status)}
-{_render_settings_snapshot(status)}
-{_render_games_table(status)}
-{_render_leaderboard_panel(leaderboard)}
+{body}
 </body>
 </html>"""
+
+
+def _render_home_page(
+    *,
+    status: dict[str, object],
+    leaderboard: dict[str, object],
+    stats: dict[str, object],
+) -> str:
+    body = (
+        '<p class="meta">봇 상태와 전적을 한눈에 보는 홈입니다. 상태 정보는 20초마다 자동 새로고침됩니다.</p>'
+        + _render_status_summary(status)
+        + '<div class="split">'
+        + '<div>'
+        + _render_games_table(status)
+        + "</div>"
+        + '<div class="panel"><h2>레이팅 TOP 3</h2>'
+        + _render_leaderboard_podium(leaderboard)
+        + '<p><a href="/leaderboard">전체 리더보드 보기</a></p></div>'
+        + "</div>"
+        + _render_stats_summary(stats)
+    )
+    return _base_html("마피아 봇 홈", body, auto_refresh=True)
+
+
+def _render_status_page(status: dict[str, object]) -> str:
+    body = (
+        '<p class="meta">진행 중 게임, 서버 연결 상태, 주요 게임 설정만 보여줍니다. 20초마다 자동 새로고침됩니다.</p>'
+        + _render_status_summary(status)
+        + _render_settings_snapshot(status)
+        + _render_games_table(status)
+    )
+    return _base_html("마피아 봇 상태판", body, auto_refresh=True)
+
+
+def _render_leaderboard_page(leaderboard: dict[str, object], stats: dict[str, object]) -> str:
+    metric_name = str(leaderboard.get("metric_name", "레이팅"))
+    body = (
+        f'<p class="meta">현재 기준: <span class="pill">{html.escape(metric_name)}</span></p>'
+        + _render_metric_tabs(leaderboard)
+        + _render_leaderboard_podium(leaderboard)
+        + _render_leaderboard_table(leaderboard)
+        + _render_stats_summary(stats)
+    )
+    return _base_html("마피아 리더보드", body)
+
+
+def _render_api_docs_page() -> str:
+    endpoints = [
+        ("GET /health", "봇 웹 서버가 살아 있는지 확인합니다."),
+        ("GET /api/status", "봇 연결 상태, 진행 중 게임, 공개 설정 요약을 반환합니다."),
+        ("GET /api/games", "진행 중 게임 목록만 반환합니다."),
+        ("GET /api/settings", "공개 가능한 게임 설정 요약을 반환합니다."),
+        ("GET /api/stats", "전적 요약 정보를 반환합니다."),
+        ("GET /api/leaderboard", "레이팅 기준 리더보드를 반환합니다."),
+        ("GET /api/leaderboard/{metric}", "wins, winrate, games, mafia, playtime, rating 기준 리더보드를 반환합니다."),
+    ]
+    rows = "".join(
+        f'<div class="endpoint"><code>{html.escape(path)}</code><span>{html.escape(desc)}</span></div>'
+        for path, desc in endpoints
+    )
+    body = (
+        '<p class="meta">웹 상태판에서 사용하는 공개 API입니다. 모든 응답은 JSON입니다.</p>'
+        '<section class="panel"><h2>엔드포인트</h2>'
+        + rows
+        + '</section><section class="panel"><h2>예시</h2>'
+        '<pre>GET /api/leaderboard/rating?limit=20\nGET /api/status</pre></section>'
+    )
+    return _base_html("마피아 봇 API 문서", body)
 
 
 def _render_message_page(*, title: str, message: str) -> str:
@@ -484,7 +635,8 @@ def create_app(
     get_config_values: Callable[[], dict[str, object]],
     apply_config_updates: Callable[[dict[str, object]], str | None],
     get_status_values: Callable[[], dict[str, object]] | None = None,
-    get_leaderboard_text: Callable[[], str] | None = None,
+    get_leaderboard_values: Callable[[str, int], dict[str, object]] | None = None,
+    get_stats_summary: Callable[[], dict[str, object]] | None = None,
     base_path: str = "/web-settings",
 ) -> FastAPI:
     """설정 편집용 FastAPI 앱을 만듭니다.
@@ -503,10 +655,15 @@ def create_app(
             return {"bot": {"ready": False}, "games": [], "settings": {}, "recruiting_guild_count": 0}
         return get_status_values()
 
-    def leaderboard_values() -> str:
-        if get_leaderboard_text is None:
-            return "리더보드 콜백이 설정되지 않았습니다."
-        return get_leaderboard_text()
+    def leaderboard_values(metric: str = "rating", limit: int = 10) -> dict[str, object]:
+        if get_leaderboard_values is None:
+            return {"metric": metric, "metric_name": metric, "metrics": [], "entries": [], "limit": limit}
+        return get_leaderboard_values(metric, limit)
+
+    def stats_summary() -> dict[str, object]:
+        if get_stats_summary is None:
+            return {}
+        return get_stats_summary()
 
     app = FastAPI(title="마피아 게임 웹 관리", docs_url=None, redoc_url=None, openapi_url=None)
     route_path = f"{base_path}/{{token}}"
@@ -514,37 +671,62 @@ def create_app(
     @app.get("/", response_class=HTMLResponse)
     async def dashboard_home() -> HTMLResponse:
         return HTMLResponse(
-            _render_dashboard_page(
-                title="마피아 봇 상태판",
+            _render_home_page(
                 status=status_values(),
-                leaderboard=leaderboard_values(),
+                leaderboard=leaderboard_values("rating", 3),
+                stats=stats_summary(),
             )
         )
 
     @app.get("/status", response_class=HTMLResponse)
     async def public_status_page() -> HTMLResponse:
+        return HTMLResponse(_render_status_page(status_values()))
+
+    @app.get("/leaderboard", response_class=HTMLResponse)
+    async def public_leaderboard_page(metric: str = "rating") -> HTMLResponse:
         return HTMLResponse(
-            _render_dashboard_page(
-                title="마피아 봇 상태판",
-                status=status_values(),
-                leaderboard=leaderboard_values(),
+            _render_leaderboard_page(
+                leaderboard=leaderboard_values(metric, 20),
+                stats=stats_summary(),
             )
         )
 
-    @app.get("/leaderboard", response_class=HTMLResponse)
-    async def public_leaderboard_page() -> HTMLResponse:
-        status = status_values()
-        return HTMLResponse(
-            _render_dashboard_page(
-                title="마피아 리더보드",
-                status=status,
-                leaderboard=leaderboard_values(),
-            )
-        )
+    @app.get("/api", response_class=HTMLResponse)
+    @app.get("/api/docs", response_class=HTMLResponse)
+    async def public_api_docs_page() -> HTMLResponse:
+        return HTMLResponse(_render_api_docs_page())
+
+    @app.get("/health")
+    async def health() -> JSONResponse:
+        return JSONResponse({"ok": True, "service": "mafia-discord-bot"})
 
     @app.get("/api/status")
     async def public_status_api() -> JSONResponse:
         return JSONResponse(status_values())
+
+    @app.get("/api/games")
+    async def public_games_api() -> JSONResponse:
+        status = status_values()
+        games = status.get("games", [])
+        return JSONResponse({"games": games if isinstance(games, list) else []})
+
+    @app.get("/api/settings")
+    async def public_settings_api() -> JSONResponse:
+        status = status_values()
+        settings = status.get("settings", {})
+        return JSONResponse({"settings": settings if isinstance(settings, dict) else {}})
+
+    @app.get("/api/stats")
+    async def public_stats_api() -> JSONResponse:
+        return JSONResponse(stats_summary())
+
+    @app.get("/api/leaderboard")
+    async def public_default_leaderboard_api(limit: int = 10) -> JSONResponse:
+        return JSONResponse(leaderboard_values("rating", limit))
+
+    @app.get("/api/leaderboard/{metric}")
+    async def public_metric_leaderboard_api(metric: str, limit: int = 10) -> JSONResponse:
+        return JSONResponse(leaderboard_values(metric, limit))
 
     @app.get(route_path, response_class=HTMLResponse)
     async def show_settings_page(token: str) -> HTMLResponse:

@@ -44,7 +44,12 @@ DISCORD_TOKEN=your_bot_token_here
 
 - `http://서버주소:8800/status` 공개 상태판
 - `http://서버주소:8800/leaderboard` 공개 리더보드
+- `http://서버주소:8800/api/docs` API 문서
 - `http://서버주소:8800/api/status` 상태 JSON API
+- `http://서버주소:8800/api/games` 진행 중 게임 API
+- `http://서버주소:8800/api/settings` 공개 설정 요약 API
+- `http://서버주소:8800/api/stats` 전적 요약 API
+- `http://서버주소:8800/api/leaderboard/{기준}` 리더보드 API (`rating`, `wins`, `winrate`, `games`, `mafia`, `playtime`)
 
 외부에서 접속하려면 방화벽/리버스 프록시(nginx 등)로 `WEB_SETTINGS_PORT`를 노출하고,
 필요하면 `WEB_SETTINGS_BASE_URL`로 사용자에게 보여줄 주소를 지정하세요.

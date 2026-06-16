@@ -61,10 +61,14 @@ from role_data import (
     MAFIA_TERM_ENTRIES,
 )
 from stats_store import (
+    INITIAL_RATING,
+    LEADERBOARD_METRIC_NAMES,
     default_player_stats,
     ensure_player_stats,
     initial_role_for_stats,
     is_mafia_team_role,
+    leaderboard_entries,
+    leaderboard_metric_name,
     leaderboard_text,
     leaderboard_value,
     load_stats,
@@ -93,6 +97,7 @@ WEB_SETTINGS_SESSION_TTL_SECONDS = 600
 WEB_SETTINGS_DEFAULT_HOST = "0.0.0.0"
 WEB_SETTINGS_DEFAULT_PORT = 8800
 BOT_STARTED_AT = time.monotonic()
+WEB_LEADERBOARD_METRICS = ("rating", "wins", "winrate", "games", "mafia", "playtime")
 
 
 def parse_user_id_list(values: object) -> list[int]:
@@ -289,12 +294,80 @@ def web_status_values() -> dict[str, object]:
     }
 
 
+def web_stats_summary() -> dict[str, object]:
+    stats = load_stats()
+    users = stats.get("users", {})
+    if not isinstance(users, dict):
+        users = {}
+    entries = [entry for entry in users.values() if isinstance(entry, dict)]
+    played_entries = [entry for entry in entries if int(entry.get("games", 0)) > 0]
+    total_player_games = sum(int(entry.get("games", 0)) for entry in played_entries)
+    total_wins = sum(int(entry.get("wins", 0)) for entry in played_entries)
+    total_play_seconds = sum(int(entry.get("play_seconds", 0)) for entry in played_entries)
+    ratings = [int(entry.get("rating", INITIAL_RATING)) for entry in played_entries]
+    return {
+        "registered_users": len(entries),
+        "recorded_players": len(played_entries),
+        "total_player_games": total_player_games,
+        "total_wins": total_wins,
+        "total_playtime": play_duration_text(total_play_seconds),
+        "total_play_seconds": total_play_seconds,
+        "average_rating": round(sum(ratings) / len(ratings)) if ratings else INITIAL_RATING,
+    }
+
+
+def web_leaderboard_values(metric: str = "rating", limit: int = 10) -> dict[str, object]:
+    if metric not in WEB_LEADERBOARD_METRICS:
+        metric = "rating"
+    safe_limit = max(1, min(int(limit), 50))
+    entries = []
+    for rank, (user_id, entry) in enumerate(leaderboard_entries(metric, limit=safe_limit), start=1):
+        games_count = int(entry.get("games", 0))
+        wins = int(entry.get("wins", 0))
+        losses = int(entry.get("losses", 0))
+        mafia_games = int(entry.get("mafia_team_games", 0))
+        play_seconds = int(entry.get("play_seconds", 0))
+        rating = int(entry.get("rating", INITIAL_RATING))
+        rating_peak = int(entry.get("rating_peak", INITIAL_RATING))
+        rating_games = int(entry.get("rating_games", 0))
+        entries.append(
+            {
+                "rank": rank,
+                "user_id": user_id,
+                "name": str(entry.get("name", "알 수 없음")),
+                "games": games_count,
+                "wins": wins,
+                "losses": losses,
+                "winrate": round(wins / games_count * 100, 1) if games_count else 0.0,
+                "winrate_text": win_rate_text(wins, games_count),
+                "mafia_team_games": mafia_games,
+                "play_seconds": play_seconds,
+                "playtime": play_duration_text(play_seconds),
+                "rating": rating,
+                "rating_peak": rating_peak,
+                "rating_games": rating_games,
+                "value": leaderboard_value(entry, metric),
+            }
+        )
+    return {
+        "metric": metric,
+        "metric_name": leaderboard_metric_name(metric),
+        "metrics": [
+            {"key": key, "name": LEADERBOARD_METRIC_NAMES[key]}
+            for key in WEB_LEADERBOARD_METRICS
+        ],
+        "limit": safe_limit,
+        "entries": entries,
+    }
+
+
 web_settings_app = web_settings.create_app(
     sessions=web_settings_sessions,
     get_config_values=web_config_values,
     apply_config_updates=apply_web_config_updates,
     get_status_values=web_status_values,
-    get_leaderboard_text=lambda: leaderboard_text("rating"),
+    get_leaderboard_values=web_leaderboard_values,
+    get_stats_summary=web_stats_summary,
     base_path=WEB_SETTINGS_PATH,
 )
 

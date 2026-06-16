@@ -4,6 +4,7 @@ import asyncio
 from contextlib import suppress
 from dataclasses import fields
 import json
+import math
 import os
 from pathlib import Path
 import secrets
@@ -91,6 +92,7 @@ WEB_SETTINGS_PATH = "/web-settings"
 WEB_SETTINGS_SESSION_TTL_SECONDS = 600
 WEB_SETTINGS_DEFAULT_HOST = "0.0.0.0"
 WEB_SETTINGS_DEFAULT_PORT = 8800
+BOT_STARTED_AT = time.monotonic()
 
 
 def parse_user_id_list(values: object) -> list[int]:
@@ -225,10 +227,74 @@ def apply_web_config_updates(updates: dict[str, object]) -> str | None:
     return None
 
 
+def web_status_values() -> dict[str, object]:
+    now = time.monotonic()
+    bot_user = getattr(bot, "user", None)
+    latency = bot.latency
+    latency_ms = round(latency * 1000) if math.isfinite(latency) else 0
+    guilds = list(getattr(bot, "guilds", []))
+    running_games = []
+    for guild_id, running in games.items():
+        guild = bot.get_guild(guild_id)
+        channel = guild.get_channel(running.channel_id) if guild else None
+        alive_count = len(running.game.alive_players())
+        dead_count = len(running.game.dead_players())
+        running_games.append(
+            {
+                "guild_id": guild_id,
+                "guild_name": guild.name if guild else str(guild_id),
+                "channel_id": running.channel_id,
+                "channel_name": f"#{channel.name}" if hasattr(channel, "name") else str(running.channel_id),
+                "phase": running.game.phase.value,
+                "day": f"{running.game.day_number}일차",
+                "participant_count": len(running.game.players),
+                "alive_count": alive_count,
+                "dead_count": dead_count,
+                "spectator_count": len(running.spectator_user_ids),
+                "anonymous_enabled": running.anonymous_enabled,
+                "elapsed": play_duration_text(int(now - running.started_at)),
+            }
+        )
+
+    return {
+        "bot": {
+            "ready": bot.is_ready(),
+            "name": bot_user.name if bot_user else "Dimi Check",
+            "latency_ms": latency_ms,
+            "guild_count": len(guilds),
+            "user_count": sum(int(guild.member_count or 0) for guild in guilds),
+            "uptime": play_duration_text(int(now - BOT_STARTED_AT)),
+        },
+        "games": sorted(running_games, key=lambda item: (str(item["guild_name"]), str(item["channel_name"]))),
+        "recruiting_guild_count": len(recruiting_guilds),
+        "settings": {
+            "game_enabled": config.game_enabled,
+            "max_player_count_text": max_player_setting_text(),
+            "role_summary": (
+                f"마피아 {config.default_mafia_count}명, "
+                f"의사 {config.default_doctor_count}명, "
+                f"수사직 {config.default_police_count}명"
+            ),
+            "special_summary": (
+                f"시민 {config.citizen_special_count}개, "
+                f"마피아 {config.mafia_special_count}개, "
+                f"중립 {config.neutral_special_count}개"
+            ),
+            "anonymous_mode_text": (
+                f"켜짐 ({anonymous_name_mode_text()})" if config.anonymous_mode else "꺼짐"
+            ),
+            "slowmode_text": f"{config.chat_slowmode_seconds}초",
+            "cult_team_text": "켜짐" if config.enable_cult_team else "꺼짐",
+        },
+    }
+
+
 web_settings_app = web_settings.create_app(
     sessions=web_settings_sessions,
     get_config_values=web_config_values,
     apply_config_updates=apply_web_config_updates,
+    get_status_values=web_status_values,
+    get_leaderboard_text=lambda: leaderboard_text("rating"),
     base_path=WEB_SETTINGS_PATH,
 )
 

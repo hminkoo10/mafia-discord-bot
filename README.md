@@ -1,6 +1,6 @@
 # Mafia Discord Bot
 
-# ⚠️ 이 프로젝트는 아카이브 되었습니다. ([Rust로 이전](https://github.com/hminkoo10/mafia-remake)
+# ⚠️ 이 프로젝트는 아카이브 되었습니다. ([Rust로 이전](https://github.com/hminkoo10/mafia-remake))
 
 디스코드에서 마피아 게임을 진행해 주는 봇입니다.
 
